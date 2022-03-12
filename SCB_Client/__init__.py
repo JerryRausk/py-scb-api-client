@@ -118,9 +118,10 @@ class SCBClient:
           if var.code == k:
             if v == ["%"]:
               query.query.remove(var)
+            elif v == ["*"]:
+              pass # default query already has all the values listed, same as ["*"]
             else:
               var.selection.values = v
-              var.selection.filter = "item"
     return query
 
   def get_variables(self) -> List[SCBVariable]:
