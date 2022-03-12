@@ -151,6 +151,39 @@ def test_default_values_when_creating_query(monkeypatch: MonkeyPatch):
     query = client.create_query()
     assert query == expected_query, "We should keep all values in every variable if no selection variables are provided and response type should be JSON by default."
 
+def test_get_default_query(monkeypatch: MonkeyPatch):
+  expected_query = SCBQuery(
+    [
+      SCBQueryVariable(
+        "first_code",
+        SCBQueryVariableSelection(
+          "item",
+          ["one", "two", "three"]
+        )
+      ),
+      SCBQueryVariable(
+        "second_code",
+        SCBQueryVariableSelection(
+          "item",
+          ["four", "five", "six"]
+        )
+      )
+    ],
+    ResponseType.JSON
+  )
+
+  with monkeypatch.context() as m:
+    client = SCBClient(
+      "Test",
+      "Test",
+      "Test",
+      "Test"
+    )
+    m.setattr(client, "get_variables", mock_variables)
+    query = client._SCBClient__get_default_query(ResponseType.JSON)
+    assert query == expected_query, "Defualt query factory should return all possible values for every variable."
+
+
 def test_estimated_cell_counter(monkeypatch: MonkeyPatch):
   expected_count = 9
 

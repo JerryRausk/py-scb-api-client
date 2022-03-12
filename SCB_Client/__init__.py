@@ -6,11 +6,9 @@ from time import sleep
 from SCB_Client.model.scb_models import SCBQuery, SCBQueryVariable, SCBQueryVariableSelection, SCBResponse, SCBResponseDataPoint, SCBVariable, ResponseType
 
 
-SCB_LIMIT_RESULT = 150000
-SCB_BASE_URL = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
-
 class SCBClient:
-  base_url = SCB_BASE_URL
+  _SCB_BASE_URL = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
+  _SCB_LIMIT_RESULT = 150000
   _variables: List[SCBVariable] = None # Used to cache variableas in case they are needed multiple times
   _size_limit_cells: int = 30000
   _preferred_partition_variable_code: str = None
@@ -27,13 +25,13 @@ class SCBClient:
     self.category = category
     self.category_specification = category_specification
     self.table = table
-    self.data_url = f"{self.base_url}/{area}/{category}/{category_specification}/{table}"
+    self.data_url = f"{self._SCB_BASE_URL}/{area}/{category}/{category_specification}/{table}"
 
   def set_preferred_partition_variable_code(self, variable_code: str) -> None:
     """preferred_partition_variable_code will be used to partition the requests if the expected result is larger than the SCB limit."""
     valid_variables = [var.code for var in self.get_variables()]
     if variable_code not in valid_variables:
-      raise ValueError(f"{variable_code} is not a valid variable, the valid variables are {', '.join(valid_variables)}")
+      raise KeyError(f"{variable_code} is not a valid variable, the valid variables are {', '.join(valid_variables)}")
     self._preferred_partition_variable_code = variable_code
 
   def get_preferred_partition_variable_code(self) -> SCBVariable:
@@ -70,7 +68,7 @@ class SCBClient:
     estimated_cell_count = self.estimate_cell_count(query)
     if estimated_cell_count > self._size_limit_cells and self._size_limit_cells > 0:
       raise PermissionError(f"Current size limit {self._size_limit_cells} will be exceeded. The size limit can be changed with set_size_limit().")
-    if estimated_cell_count < SCB_LIMIT_RESULT:
+    if estimated_cell_count < self._SCB_LIMIT_RESULT:
       response = requests.post(self.data_url, json = query.to_dict()).json()
       return [self.__create_response_obj(response)]
     else:
@@ -185,9 +183,9 @@ class SCBClient:
     """Calculates how many values from the partition variable can be included in the request
     without exceeding SCB limit."""
     estimated_count_per_value = self.estimate_cell_count(query) / len(partition_variable.selection.values)
-    if estimated_count_per_value > SCB_LIMIT_RESULT:
-      raise ValueError(f"Can't partition by {partition_variable.code}, each partition would exceed SCB limit ({int(estimated_count_per_value)} > {SCB_LIMIT_RESULT}).")
-    values_per_partition = math.floor(SCB_LIMIT_RESULT / estimated_count_per_value)
+    if estimated_count_per_value > self._SCB_LIMIT_RESULT:
+      raise ValueError(f"Can't partition by {partition_variable.code}, each partition would exceed SCB limit ({int(estimated_count_per_value)} > {self._SCB_LIMIT_RESULT}).")
+    values_per_partition = math.floor(self._SCB_LIMIT_RESULT / estimated_count_per_value)
     return values_per_partition
 
   @classmethod
@@ -196,42 +194,42 @@ class SCBClient:
         Requires 4 light-weight requests to SCB."""
     s = requests.Session()
     # Validating area
-    scb_area_response = s.get(cls.base_url)
+    scb_area_response = s.get(cls._SCB_BASE_URL)
     if scb_area_response.status_code != 200:
-      raise ConnectionError(f"Couldn't reach SCB at {cls.base_url}")
+      raise ConnectionError(f"Couldn't reach SCB at {cls._SCB_BASE_URL}")
 
     if area not in [scb_area["id"] for scb_area in json.loads(scb_area_response.content.decode("latin-1"))]:
-      raise ValueError(f"{area} doesn't seem to be a valid area, please visit {cls.base_url} for valid areas.")
+      raise ValueError(f"{area} doesn't seem to be a valid area, please visit {cls._SCB_BASE_URL} for valid areas.")
    
     _area = area
     
     # Validating category
-    scb_category_response = s.get(f"{cls.base_url}/{area}")
+    scb_category_response = s.get(f"{cls._SCB_BASE_URL}/{area}")
     if scb_category_response.status_code != 200:
-      raise ConnectionError(f"Couldn't retrieve categories from SCB at {cls.base_url}/{area}")
+      raise ConnectionError(f"Couldn't retrieve categories from SCB at {cls._SCB_BASE_URL}/{area}")
 
     if category not in [scb_category["id"] for scb_category in json.loads(scb_category_response.content.decode("latin-1"))]:
-      raise ValueError(f"{category} doesn't seem to be a valid category, please visit {cls.base_url}/{area} for valid categories.")
+      raise ValueError(f"{category} doesn't seem to be a valid category, please visit {cls._SCB_BASE_URL}/{area} for valid categories.")
 
     _category = category
 
      # Validating category sepcification
-    scb_category_specification_response = s.get(f"{cls.base_url}/{area}/{category}")
+    scb_category_specification_response = s.get(f"{cls._SCB_BASE_URL}/{area}/{category}")
     if scb_category_specification_response.status_code != 200:
-      raise ConnectionError(f"Couldn't retrieve category specifications from SCB at {cls.base_url}/{area}/{category}")
+      raise ConnectionError(f"Couldn't retrieve category specifications from SCB at {cls._SCB_BASE_URL}/{area}/{category}")
 
     if category_specification not in [scb_category_spec["id"] for scb_category_spec in json.loads(scb_category_specification_response.content.decode("latin-1"))]:
-      raise ValueError(f"{category_specification} doesn't seem to be a valid category specification, please visit {cls.base_url}/{area}/{category} for valid specifications.")
+      raise ValueError(f"{category_specification} doesn't seem to be a valid category specification, please visit {cls._SCB_BASE_URL}/{area}/{category} for valid specifications.")
 
     _category_spec = category_specification
 
     # Validating table
-    scb_table_response = s.get(f"{cls.base_url}/{area}/{category}/{category_specification}")
+    scb_table_response = s.get(f"{cls._SCB_BASE_URL}/{area}/{category}/{category_specification}")
     if scb_table_response.status_code != 200:
-      raise ConnectionError(f"Couldn't retrieve tables from SCB at {cls.base_url}/{area}/{category}/{category_specification}")
+      raise ConnectionError(f"Couldn't retrieve tables from SCB at {cls._SCB_BASE_URL}/{area}/{category}/{category_specification}")
 
     if table not in [scb_table["id"] for scb_table in json.loads(scb_table_response.content.decode("latin-1"))]:
-      raise ValueError(f"{category_specification} doesn't seem to be a valid table, please visit {cls.base_url}/{area}/{category}/{category_specification} for valid tables.")
+      raise ValueError(f"{category_specification} doesn't seem to be a valid table, please visit {cls._SCB_BASE_URL}/{area}/{category}/{category_specification} for valid tables.")
 
     _table = table
 
