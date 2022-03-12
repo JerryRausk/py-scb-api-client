@@ -24,6 +24,14 @@ class SCBResponse:
   data: List[SCBResponseDataPoint]
 
 class SCBQuery:
-  def __init__(self, query: dict[str, list], response_type: str):
+  def __init__(self, query: dict[str, list], response_type: ResponseType):
     self.query = query
     self.response_type = response_type
+  
+  def to_dict(self):
+    return {
+      "query": self.query,
+      "response": {
+        "format": self.response_type.value
+      } 
+    }
