@@ -25,5 +25,5 @@ variable_selections = {
 query = scb_client.create_query(variable_selections, ResponseType.JSON)
 
 # Fetch the data
-scb_data = scb_client.get_data(query, ResponseType.JSON)
+scb_data = scb_client.get_data(query)
 ```

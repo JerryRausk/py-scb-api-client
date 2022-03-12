@@ -31,6 +31,7 @@ class SCBClient:
   base_url = SCB_BASE_URL
   _variables = None # Used to cache variableas in case they are needed multiple times
   _size_limit_cells = 30000
+  _preferred_partition_variable = None
 
   def __init__(
     self, 
@@ -45,6 +46,27 @@ class SCBClient:
     self.category_specification = category_specification
     self.table = table
     self.data_url = f"{self.base_url}/{area}/{category}/{category_specification}/{table}"
+
+  def set_preferred_partition_variable(self, variable: str) -> None:
+    """preferred_partition_variable will be used to partition the requests if the expected result is larger than the SCB limit."""
+    valid_variables = [var["code"] for var in self.get_variables()]
+    if variable not in valid_variables:
+      raise ValueError(f"{variable} is not a valid variable, the valid variables are {', '.join(valid_variables)}")
+    self._preferred_partition_variable = variable
+
+  def get_preferred_partition_variable(self) -> str:
+    """preferred_partition_variable will be used to partition the requests if the expected result is larger than the SCB limit."""
+    return self._preferred_partition_variable
+
+  def set_size_limit(self, limit: int) -> None:
+    """Size limit is used to protect against unwanted data use, will be ignored if set to 0."""
+    if limit < 0 or not isinstance(limit, int):
+      raise ValueError("Size limit must be a positive integer.")
+    self._size_limit_cells = limit 
+  
+  def get_size_limit(self) -> int:
+    """Size limit is used to protect against unwanted data use, will be ignored if set to 0."""
+    return self._size_limit_cells
 
   def estimate_cell_count(self, query: SCBQuery) -> dict:
     """
@@ -72,18 +94,12 @@ class SCBClient:
     combinations = [len(v) for _, v in variables_dict.items()]
     return math.prod(combinations)
   
-  def set_size_limit(self, limit: int) -> None:
-    self._size_limit_cells = limit 
-  
-  def get_size_limit(self) -> int:
-    return self._size_limit_cells
-
   def get_data(self, query: SCBQuery) -> SCBResponse:
     """
     Validates that the internal limit wont be exceeded, the c
     """
     estimated_cell_count = self.estimate_cell_count(query)
-    if estimated_cell_count > self._size_limit_cells:
+    if estimated_cell_count > self._size_limit_cells and self._size_limit_cells > 0:
       raise PermissionError(f"Current size limit {self._size_limit_cells} will be exceeded. The size limit can be changed with set_size_limit().")
     if estimated_cell_count < SCB_LIMIT_RESULT:
       response = requests.post(self.data_url, json = query).json()
