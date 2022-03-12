@@ -1,38 +1,13 @@
 import json
-from typing import Dict, List, Optional
+from typing import Dict, List
 import requests
 import math
-from enum import Enum
-from dataclasses import dataclass
+
+from SCB_Client.model.scb_models import SCBQuery, SCBResponse, SCBResponseDataPoint, SCBVariable, ResponseType
+
 
 SCB_LIMIT_RESULT = 150000
 SCB_BASE_URL = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
-
-class ResponseType(Enum):
-  JSON = "json"
-
-@dataclass()
-class SCBVariable():
-  code: str
-  text: str
-  values: List[str]
-  valueTexts: List[str]
-
-@dataclass
-class SCBResponseDataPoint:
-  key: List[str]
-  values: List[str]
-
-@dataclass
-class SCBResponse:
-  columns: List[dict]
-  comments: List[dict]
-  data: List[SCBResponseDataPoint]
-
-class SCBQuery:
-  def __init__(self, query: dict[str, list], response_type: str):
-    self.query = query
-    self.response_type = response_type
 
 class SCBClient:
   base_url = SCB_BASE_URL
