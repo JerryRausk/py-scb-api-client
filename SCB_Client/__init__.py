@@ -10,8 +10,6 @@ SCB_BASE_URL = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
 
 class ResponseType(Enum):
   JSON = "json"
-  CSV = "csv"
-  PX = "px"
 
 @dataclass
 class SCBResponseDataPoint:
@@ -80,7 +78,7 @@ class SCBClient:
   def get_size_limit(self) -> int:
     return self._size_limit_cells
 
-  def get_data(self, query: SCBQuery, response_type: ResponseType = ResponseType.JSON) -> SCBResponse:
+  def get_data(self, query: SCBQuery) -> SCBResponse:
     """
     Validates that the internal limit wont be exceeded, the c
     """
@@ -217,4 +215,3 @@ class SCBClient:
       category_specification = _category_spec,
       table = _table
     )
-
