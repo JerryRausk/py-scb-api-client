@@ -10,7 +10,8 @@ from SCB_Client import SCBClient, ResponseType
 
 # Initialize the client, in this example we are using population data.
 scb_client = SCBClient.create_and_validate_client("BE", "BE0101", "BE0101A", "BefolkManad") 
-
+scb_client.set_size_limit(0) # Unlimited response size, defaults to 30k
+scb_client.set_
 # Create a dict of variables to be used in query
 variable_selections = {
   # Support specifying which values of the variable you want to include

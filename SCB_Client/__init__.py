@@ -3,7 +3,7 @@ from typing import Dict, List
 import requests
 import math
 from time import sleep
-from SCB_Client.model.scb_models import SCBQuery, SCBResponse, SCBResponseDataPoint, SCBVariable, ResponseType
+from SCB_Client.model.scb_models import SCBQuery, SCBQueryVariable, SCBQueryVariableSelection, SCBResponse, SCBResponseDataPoint, SCBVariable, ResponseType
 
 
 SCB_LIMIT_RESULT = 150000
@@ -13,7 +13,7 @@ class SCBClient:
   base_url = SCB_BASE_URL
   _variables: List[SCBVariable] = None # Used to cache variableas in case they are needed multiple times
   _size_limit_cells = 30000
-  _preferred_partition_variable: SCBVariable = None
+  _preferred_partition_variable_code: str = None
 
   def __init__(
     self, 
@@ -29,16 +29,16 @@ class SCBClient:
     self.table = table
     self.data_url = f"{self.base_url}/{area}/{category}/{category_specification}/{table}"
 
-  def set_preferred_partition_variable(self, variable_code: str) -> None:
+  def set_preferred_partition_variable_code(self, variable_code: str) -> None:
     """preferred_partition_variable will be used to partition the requests if the expected result is larger than the SCB limit."""
     valid_variables = [var.code for var in self.get_variables()]
     if variable_code not in valid_variables:
       raise ValueError(f"{variable_code} is not a valid variable, the valid variables are {', '.join(valid_variables)}")
-    self._preferred_partition_variable = [var for var in self.get_variables() if var.code == variable_code][0]
+    self._preferred_partition_variable_code = variable_code
 
-  def get_preferred_partition_variable(self) -> SCBVariable:
+  def get_preferred_partition_variable_code(self) -> SCBVariable:
     """preferred_partition_variable will be used to partition the requests if the expected result is larger than the SCB limit."""
-    return self._preferred_partition_variable
+    return self._preferred_partition_variable_code
 
   def set_size_limit(self, limit: int) -> None:
     """Size limit is used to protect against unwanted data use, will be ignored if set to 0."""
@@ -60,21 +60,7 @@ class SCBClient:
     Returns:
       count: int
     """
-    query_variables = query.query
-    variables = self.get_variables()
-    # This dict will be used to count the product of all the combinations. 
-    variables_dict = {}
-    for var in variables:
-      # If the variable isnt included in the query it means it is omitted by the user when creating the query.
-      if var.code in [query_var["code"] for query_var in query_variables]:
-       variables_dict[var.code] = var.values
-    
-    for var in query_variables:
-      if var["selection"]["values"] != ["*"]:
-        variables_dict[var["code"]] = var["selection"]["values"]
-
-    combinations = [len(v) for _, v in variables_dict.items()]
-    return math.prod(combinations)
+    return math.prod([len(queryvar.selection.values) for queryvar in query.query])
   
   def get_data(self, query: SCBQuery) -> List[SCBResponse]:
     """
@@ -88,22 +74,18 @@ class SCBClient:
       response = requests.post(self.data_url, json = query.to_dict()).json()
       return [self.__create_response_obj(response)]
     else:
-      part_variable_code = self.__get_preferred_partition_variable_code_or_default(query)
-      part_variable_values = [var["selection"]["values"] for var in query.query if var["code"] == part_variable_code][0]
+      partition_variable = self.__get_preferred_partition_variable_or_default(query)
+      
       # First we check how many values of the partition variable we can include in each request
-      part_values_per_request = self.__get_partition_values_per_request(query, part_variable_code)
+      partition_values_per_request = self.__get_partition_values_per_request(query, partition_variable)
 
       # Now we need to fetch the data
+      values_to_partition = partition_variable.selection.values.copy()
+      partitions = self.__partition_list(values_to_partition, partition_values_per_request)
       response_list: List[SCBResponse] = []
-      for i in range(part_values_per_request, len(part_variable_values) + 1, part_values_per_request):
-        part_values = part_variable_values[i-2:i]
-        part_query = self.create_query(
-          {
-            part_variable_code: part_values
-          },
-          query.response_type
-        )
-        response = requests.post(self.data_url, json = part_query.to_dict()).json()
+      for partition in partitions:
+        partition_variable.selection.values = partition
+        response = requests.post(self.data_url, json = query.to_dict()).json()
         response_list.append(self.__create_response_obj(response))
         sleep(1) # Naively wait 1 sec between requests to make sure we are not too eager. 
         
@@ -126,19 +108,19 @@ class SCBClient:
     
     
     if variable_selection != None:
-      valid_keys = [var.code for var in self.get_variables()]
+      valid_keys = query.query_variable_codes_to_list()
       for k, v in variable_selection.items():
         if k not in valid_keys:
           raise KeyError(f"{k} is not a valid variable. These are the valid variables {valid_keys}. For more information visit {self.data_url}.")
         if not isinstance(v, List):
           raise TypeError(f"Got value {v} for key {k}, all values should be lists, even if there is only one element.")
-        for i, query_var in enumerate(query.query):
-          if query_var["code"] == k:
+        for var in query.query:
+          if var.code == k:
             if v == ["%"]:
-              query.query.pop(i)
+              query.query.remove(var)
             else:
-              query_var["selection"]["values"] = v
-              query_var["selection"]["filter"] = "item"
+              var.selection.values = v
+              var.selection.filter = "item"
     return query
 
   def get_variables(self) -> List[SCBVariable]:
@@ -152,11 +134,24 @@ class SCBClient:
     s.close()
     return variables
   
+  def __partition_list(self, list_to_partition: list, partition_size: int):
+    list_partitioned = []
+    for i in range(0, len(list_to_partition), partition_size):
+      list_partitioned.append(list_to_partition[i:i+partition_size])
+    return list_partitioned
+
   def __create_response_obj(self, response_data: dict):
     return SCBResponse(
       columns = response_data["columns"],
       comments = response_data["comments"],
-      data = [SCBResponseDataPoint(datapoint["key"], datapoint["values"]) for datapoint in response_data["data"]]
+      data = [
+        SCBResponseDataPoint(
+          datapoint["key"], 
+          datapoint["values"]
+        ) 
+        for datapoint 
+        in response_data["data"]
+      ]
     )
 
   def __get_default_query(self, response_type: ResponseType) -> SCBQuery:
@@ -167,29 +162,30 @@ class SCBClient:
       response_type = response_type
     )
     for var in self.get_variables():
-      scb_query.query.append({
-        "code": var.code,
-        "selection": {
-          "filter": "all",
-          "values": ["*"]
-        }
-      })
+      scb_query.query.append(SCBQueryVariable(
+        var.code,
+        SCBQueryVariableSelection(
+          "item",
+          var.values
+        )
+      ))
     return scb_query
 
-  def __get_preferred_partition_variable_code_or_default(self, query: SCBQuery) -> SCBVariable:
-    """Returns the preferred partition variable if any, defaults to variable with most values."""
-    if self._preferred_partition_variable != None:
-      return self._preferred_partition_variable.code
+  def __get_preferred_partition_variable_or_default(self, query: SCBQuery) -> SCBQueryVariable:
+    """Returns the preferred partition variable if any, defaults to variable in query with most values."""
+    if self._preferred_partition_variable_code != None:
+      return [queryvar for queryvar in query.query if queryvar.code == self._preferred_partition_variable_code][0]
     
     variables = query.query
-    variables.sort(key = lambda l: len(l["selection"]["values"]), reverse = True)
-    return variables[0]["code"]
+    variables.sort(key = lambda qv: len(qv.selection.values), reverse = True)
+    return variables[0]
   
-  def __get_partition_values_per_request(self, query: SCBQuery, part_variable_code: str) -> int:
+  def __get_partition_values_per_request(self, query: SCBQuery, partition_variable: SCBQueryVariable) -> int:
     """Calculates how many values from the partition variable can be included in the request
     without exceeding SCB limit."""
-    values_in_part_variable = [len(var["selection"]["values"]) for var in query.query if var["code"] == part_variable_code][0]
-    estimated_count_per_value = self.estimate_cell_count(query) / values_in_part_variable
+    estimated_count_per_value = self.estimate_cell_count(query) / len(partition_variable.selection.values)
+    if estimated_count_per_value > SCB_LIMIT_RESULT:
+      raise ValueError(f"Can't partition by {partition_variable.code}, each partition would exceed SCB limit ({int(estimated_count_per_value)} > {SCB_LIMIT_RESULT}).")
     values_per_partition = math.floor(SCB_LIMIT_RESULT / estimated_count_per_value)
     return values_per_partition
 

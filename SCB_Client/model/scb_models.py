@@ -23,14 +23,40 @@ class SCBResponse:
   comments: List[dict]
   data: List[SCBResponseDataPoint]
 
+@dataclass
+class SCBQueryVariableSelection:
+  filter: str
+  values: List[str]
+@dataclass
+class SCBQueryVariable:
+  code: str
+  selection: SCBQueryVariableSelection
+
+@dataclass
 class SCBQuery:
-  def __init__(self, query: dict[str, list], response_type: ResponseType):
-    self.query = query
-    self.response_type = response_type
+  query: List[SCBQueryVariable]
+  response_type: ResponseType
   
+  def query_variables_to_list(self):
+    ret = []
+    for var in self.query:
+      ret.append(
+        {
+          "code": var.code,
+          "selection": {
+            "filter": var.selection.filter,
+            "values": var.selection.values
+          }
+        }
+      )
+    return ret
+  
+  def query_variable_codes_to_list(self):
+    return [var.code for var in self.query]
+
   def to_dict(self):
     return {
-      "query": self.query,
+      "query" : self.query_variables_to_list(),
       "response": {
         "format": self.response_type.value
       } 
