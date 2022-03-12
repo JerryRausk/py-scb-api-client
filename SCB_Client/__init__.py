@@ -11,6 +11,13 @@ SCB_BASE_URL = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
 class ResponseType(Enum):
   JSON = "json"
 
+@dataclass()
+class SCBVariable():
+  code: str
+  text: str
+  values: List[str]
+  valueTexts: List[str]
+
 @dataclass
 class SCBResponseDataPoint:
   key: List[str]
@@ -29,9 +36,9 @@ class SCBQuery:
 
 class SCBClient:
   base_url = SCB_BASE_URL
-  _variables = None # Used to cache variableas in case they are needed multiple times
+  _variables: List[SCBVariable] = None # Used to cache variableas in case they are needed multiple times
   _size_limit_cells = 30000
-  _preferred_partition_variable = None
+  _preferred_partition_variable: SCBVariable = None
 
   def __init__(
     self, 
@@ -47,14 +54,14 @@ class SCBClient:
     self.table = table
     self.data_url = f"{self.base_url}/{area}/{category}/{category_specification}/{table}"
 
-  def set_preferred_partition_variable(self, variable: str) -> None:
+  def set_preferred_partition_variable(self, variable: SCBVariable) -> None:
     """preferred_partition_variable will be used to partition the requests if the expected result is larger than the SCB limit."""
-    valid_variables = [var["code"] for var in self.get_variables()]
+    valid_variables = [var.code for var in self.get_variables()]
     if variable not in valid_variables:
       raise ValueError(f"{variable} is not a valid variable, the valid variables are {', '.join(valid_variables)}")
     self._preferred_partition_variable = variable
 
-  def get_preferred_partition_variable(self) -> str:
+  def get_preferred_partition_variable(self) -> SCBVariable:
     """preferred_partition_variable will be used to partition the requests if the expected result is larger than the SCB limit."""
     return self._preferred_partition_variable
 
@@ -84,8 +91,8 @@ class SCBClient:
     variables_dict = {}
     for var in variables:
       # If the variable isnt included in the query it means it is omitted by the user when creating the query.
-      if var["code"] in [query_var["code"] for query_var in query_variables]:
-       variables_dict[var["code"]] = var["values"]
+      if var.code in [query_var["code"] for query_var in query_variables]:
+       variables_dict[var.code] = var.values
     
     for var in query_variables:
       if var["selection"]["values"] != ["*"]:
@@ -127,7 +134,7 @@ class SCBClient:
     
     
     if variable_selection != None:
-      valid_keys = [var["code"] for var in self.get_variables()]
+      valid_keys = [var.code for var in self.get_variables()]
       for k, v in variable_selection.items():
         if k not in valid_keys:
           raise KeyError(f"{k} is not a valid variable. These are the valid variables {valid_keys}. For more information visit {self.data_url}.")
@@ -142,13 +149,13 @@ class SCBClient:
               query_var["selection"]["filter"] = "item"
     return query_dict
 
-  def get_variables(self) -> List[dict]:
+  def get_variables(self) -> List[SCBVariable]:
     """Returns cached variables with possible values if exists, otherwhise fetch, cache and return."""
     if self._variables != None:
       return self._variables
     s = requests.Session()
     response = s.get(self.data_url).json()
-    variables = [var for var in response["variables"]]
+    variables = [SCBVariable(var["code"], var["text"], var["values"], var["valueTexts"]) for var in response["variables"]]
     self._variables = variables # cache it
     s.close()
     return variables
@@ -170,13 +177,18 @@ class SCBClient:
     }
     for var in self.get_variables():
       scb_query["query"].append({
-        "code": var["code"],
+        "code": var.code,
         "selection": {
           "filter": "all",
           "values": ["*"]
         }
       })
     return scb_query
+
+  def __get_variable_with_most_values(self) -> SCBVariable:
+    variables = self.get_variables()
+    variables.sort(key = lambda l: len(l.values))
+    return variables[0]
 
   @classmethod
   def create_and_validate_client(cls, area, category, category_specification, table):
