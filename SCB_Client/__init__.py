@@ -42,7 +42,7 @@ class SCBClient:
 
   def set_size_limit(self, limit: int) -> None:
     """Size limit is used to protect against unwanted data use, will be ignored if set to 0."""
-    if limit < 0 or not isinstance(limit, int):
+    if not isinstance(limit, int) or limit < 0:
       raise ValueError("Size limit must be a positive integer.")
     self._size_limit_cells = limit 
   
