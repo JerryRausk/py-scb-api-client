@@ -12,7 +12,7 @@ SCB_BASE_URL = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
 class SCBClient:
   base_url = SCB_BASE_URL
   _variables: List[SCBVariable] = None # Used to cache variableas in case they are needed multiple times
-  _size_limit_cells = 30000
+  _size_limit_cells: int = 30000
   _preferred_partition_variable_code: str = None
 
   def __init__(
@@ -30,14 +30,14 @@ class SCBClient:
     self.data_url = f"{self.base_url}/{area}/{category}/{category_specification}/{table}"
 
   def set_preferred_partition_variable_code(self, variable_code: str) -> None:
-    """preferred_partition_variable will be used to partition the requests if the expected result is larger than the SCB limit."""
+    """preferred_partition_variable_code will be used to partition the requests if the expected result is larger than the SCB limit."""
     valid_variables = [var.code for var in self.get_variables()]
     if variable_code not in valid_variables:
       raise ValueError(f"{variable_code} is not a valid variable, the valid variables are {', '.join(valid_variables)}")
     self._preferred_partition_variable_code = variable_code
 
   def get_preferred_partition_variable_code(self) -> SCBVariable:
-    """preferred_partition_variable will be used to partition the requests if the expected result is larger than the SCB limit."""
+    """preferred_partition_variable_code will be used to partition the requests if the expected result is larger than the SCB limit."""
     return self._preferred_partition_variable_code
 
   def set_size_limit(self, limit: int) -> None:
