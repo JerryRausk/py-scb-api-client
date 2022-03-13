@@ -164,13 +164,15 @@ class SCBClient:
     s.close()
     return variables
 
-  def __partition_list(self, list_to_partition: list, partition_size: int):
+  @staticmethod
+  def __partition_list(list_to_partition: list, partition_size: int):
     list_partitioned = []
     for i in range(0, len(list_to_partition), partition_size):
       list_partitioned.append(list_to_partition[i:i+partition_size])
     return list_partitioned
 
-  def __create_response_obj(self, response_data: requests.Response, response_type: ResponseType):
+  @staticmethod
+  def __create_response_obj(response_data: requests.Response, response_type: ResponseType):
     if response_type == ResponseType.JSON:
       json_data = response_data.json()
       return SCBResponse(
