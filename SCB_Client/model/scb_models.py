@@ -11,6 +11,8 @@ class SCBVariable():
   text: str
   values: List[str]
   valueTexts: List[str]
+  elimination: bool = False
+  time: bool = False
 
 @dataclass
 class SCBResponseDataPoint:

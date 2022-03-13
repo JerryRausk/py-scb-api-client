@@ -1,5 +1,5 @@
 import json
-from typing import Dict, List
+from typing import List, Optional
 import requests
 import math
 from time import sleep
@@ -89,7 +89,7 @@ class SCBClient:
         
       return response_list
     
-  def create_query(self, variable_selection: dict[str, list] = None, response_type: ResponseType = ResponseType.JSON) -> SCBQuery:
+  def create_query(self, variable_selection: Optional[dict[str, list]] = None, response_type: ResponseType = ResponseType.JSON, time_top: int = 0) -> SCBQuery:
     """
     Params:
       variable_selection: dict
@@ -97,14 +97,22 @@ class SCBClient:
           Omitted variable will be using a wildcard, 
             you can specify wildcard as ["*"] if you want to be explicit.
             you can specify a merge as["%"] if you want to group all values within that variable into a single cell.
-      response_type: ResponseType
+      response_type: ResponseType = ResponseType.JSON
+      time_top: int = 0
+        Will raise a ValueError if none of the variables available in current table is a time variable.
     """
+
+    # Validating input
     if not isinstance(response_type, ResponseType):
       raise TypeError("Response type need to be one of type ResponseType, e.g. ResponseType.JSON.")
+    if not isinstance(time_top, int) or time_top < 0:
+      raise TypeError("time_top should be a positive integer.")
+    if variable_selection != None and not isinstance(variable_selection, dict):
+      raise TypeError("Variable selection needs to be a dictionary.")
 
     query = self.__get_default_query(response_type)
-    
-    
+
+    # Handling variable selection
     if variable_selection != None:
       valid_keys = query.query_variable_codes_to_list()
       for k, v in variable_selection.items():
@@ -120,6 +128,19 @@ class SCBClient:
               pass # default query already has all the values listed, same as ["*"]
             else:
               var.selection.values = v
+    
+    # Handling time top selection
+    if time_top > 0:
+      time_variable = [var for var in self.get_variables() if var.time == True]
+      if not time_variable:
+        raise ValueError("Can't find a time variable in current table.")
+      time_variable = time_variable[0]
+      time_query_variable = [qv for qv in query.query if qv.code == time_variable.code][0]
+      if variable_selection != None and time_query_variable.code in variable_selection.keys():
+        raise ValueError("Time variable can't be included in variable selection if time_top is used.")
+      time_values_count = len(time_query_variable.selection.values)
+      time_query_variable.selection.values = time_query_variable.selection.values[time_values_count - time_top : time_values_count]
+
     return query
 
   def get_variables(self) -> List[SCBVariable]:
@@ -128,11 +149,11 @@ class SCBClient:
       return self._variables
     s = requests.Session()
     response = s.get(self.data_url).json()
-    variables = [SCBVariable(var["code"], var["text"], var["values"], var["valueTexts"]) for var in response["variables"]]
+    variables = [SCBVariable(**var) for var in response["variables"]]
     self._variables = variables # cache it
     s.close()
     return variables
-  
+
   def __partition_list(self, list_to_partition: list, partition_size: int):
     list_partitioned = []
     for i in range(0, len(list_to_partition), partition_size):

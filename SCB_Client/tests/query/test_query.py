@@ -3,22 +3,7 @@ from pytest import MonkeyPatch
 
 from SCB_Client import SCBClient, SCBVariable, ResponseType
 from SCB_Client.model.scb_models import SCBQuery, SCBQueryVariable, SCBQueryVariableSelection
-
-def mock_variables():
-    return [
-      SCBVariable(
-        "first_code",
-        "first_code",
-        ["one", "two", "three"],
-        ["one", "two", "three"]
-      ),
-      SCBVariable(
-        "second_code",
-        "second_code",
-        ["four", "five", "six"],
-        ["four", "five", "six"]
-      )
-    ]
+from SCB_Client.tests.helpers import mock_variables, mock_variables_with_time
 
 def test_wildcard_in_query(monkeypatch: MonkeyPatch):
   expected_query = SCBQuery(
@@ -249,3 +234,85 @@ def test_response_type_is_not_enum(monkeypatch: MonkeyPatch):
     
     with pytest.raises(expected_exception):
       query = client.create_query(response_type = "json")
+
+def test_time_top(monkeypatch: MonkeyPatch):
+  expected_query = SCBQuery(
+    [
+      SCBQueryVariable(
+        "first_code",
+        SCBQueryVariableSelection(
+          "item",
+          ["one", "two", "three"]
+        )
+      ),
+      SCBQueryVariable(
+        "second_code",
+        SCBQueryVariableSelection(
+          "item",
+          ["four", "five", "six"]
+        )
+      ),
+      SCBQueryVariable(
+        "third_code",
+        SCBQueryVariableSelection(
+          "item",
+          ["seven", "eigth", "nine", "ten", "eleven", "twelve"]
+        )
+      ),
+      SCBQueryVariable(
+        "time_code",
+        SCBQueryVariableSelection(
+          "item",
+          ["2003", "2004", "2005"]
+        )
+      ),
+    ],
+    ResponseType.JSON
+  )
+
+  with monkeypatch.context() as m:
+    client = SCBClient(
+      "Test",
+      "Test",
+      "Test",
+      "Test"
+    )
+    m.setattr(client, "get_variables", mock_variables_with_time)
+  
+    time_top = 3
+    query = client.create_query(time_top = time_top)
+    assert query == expected_query, "Variables which are omitted with ['%'] should be popped from query."
+
+def test_time_top_is_unavailable(monkeypatch: MonkeyPatch):
+  expected_exception = ValueError
+  
+  with monkeypatch.context() as m:
+    client = SCBClient(
+      "Test",
+      "Test",
+      "Test",
+      "Test"
+    )
+    m.setattr(client, "get_variables", mock_variables)
+  
+    variable_selection = {
+      "first_code": ["two"],
+      "second_code": ["*"]
+    }
+    with pytest.raises(ValueError, match = "Can't find a time variable in current table.") as r:
+      client.create_query(time_top = 1)
+
+def test_time_top_and_time_variable_in_selection(monkeypatch: MonkeyPatch):
+  with monkeypatch.context() as m:
+    client = SCBClient(
+      "Test",
+      "Test",
+      "Test",
+      "Test"
+    )
+    m.setattr(client, "get_variables", mock_variables_with_time)
+    variable_selection = {
+      "time_code": ["2003", "2004"]
+    }
+    with pytest.raises(ValueError, match = "Time variable can't be included in variable selection if time_top is used.") as r:
+      client.create_query(variable_selection, ResponseType.JSON, 3)
