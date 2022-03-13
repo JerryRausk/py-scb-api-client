@@ -4,6 +4,7 @@ from typing import List
 
 class ResponseType(Enum):
   JSON = "json"
+  CSV = "csv"
 
 @dataclass()
 class SCBVariable():

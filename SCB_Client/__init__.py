@@ -1,10 +1,11 @@
+from itertools import product
 import json
 from typing import List, Optional
 import requests
 import math
 from time import sleep
 from SCB_Client.model.scb_models import SCBQuery, SCBQueryVariable, SCBQueryVariableSelection, SCBResponse, SCBResponseDataPoint, SCBVariable, ResponseType
-
+import csv
 
 class SCBClient:
   _SCB_BASE_URL = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
@@ -58,7 +59,16 @@ class SCBClient:
     Returns:
       count: int
     """
-    return math.prod([len(queryvar.selection.values) for queryvar in query.query])
+    if query.response_type == ResponseType.JSON:
+      return math.prod([len(queryvar.selection.values) for queryvar in query.query])
+    elif query.response_type == ResponseType.CSV:
+      # TODO: This calculation is off by 1, no clue why.
+      time_variable_code = [var.code for var in self.get_variables() if var.time == True][0]
+      time_variable_value_count = [len(var.selection.values) for var in query.query if var.code == time_variable_code][0]
+      product_of_all_variable_value_count = math.prod([len(queryvar.selection.values) for queryvar in query.query])
+      return int(product_of_all_variable_value_count / time_variable_value_count)
+    else:
+      raise NotImplementedError("This ResponseType is not implemented yet.")
   
   def get_data(self, query: SCBQuery) -> List[SCBResponse]:
     """
@@ -69,8 +79,8 @@ class SCBClient:
     if estimated_cell_count > self._size_limit_cells and self._size_limit_cells > 0:
       raise PermissionError(f"Current size limit {self._size_limit_cells} will be exceeded. The size limit can be changed with set_size_limit().")
     if estimated_cell_count < self._SCB_LIMIT_RESULT:
-      response = requests.post(self.data_url, json = query.to_dict()).json()
-      return [self.__create_response_obj(response)]
+      response = requests.post(self.data_url, json = query.to_dict())
+      return [self.__create_response_obj(response, query.response_type)]
     else:
       partition_variable = self.__get_preferred_partition_variable_or_default(query)
       
@@ -83,12 +93,12 @@ class SCBClient:
       response_list: List[SCBResponse] = []
       for partition in partitions:
         partition_variable.selection.values = partition
-        response = requests.post(self.data_url, json = query.to_dict()).json()
-        response_list.append(self.__create_response_obj(response))
+        response = requests.post(self.data_url, json = query.to_dict())
+        response_list.append(self.__create_response_obj(response, query.response_type))
         sleep(1) # Naively wait 1 sec between requests to make sure we are not too eager. 
         
       return response_list
-    
+  
   def create_query(self, variable_selection: Optional[dict[str, list]] = None, response_type: ResponseType = ResponseType.JSON, time_top: int = 0) -> SCBQuery:
     """
     Params:
@@ -160,19 +170,38 @@ class SCBClient:
       list_partitioned.append(list_to_partition[i:i+partition_size])
     return list_partitioned
 
-  def __create_response_obj(self, response_data: dict):
-    return SCBResponse(
-      columns = response_data["columns"],
-      comments = response_data["comments"],
-      data = [
-        SCBResponseDataPoint(
-          datapoint["key"], 
-          datapoint["values"]
-        ) 
-        for datapoint 
-        in response_data["data"]
-      ]
-    )
+  def __create_response_obj(self, response_data: requests.Response, response_type: ResponseType):
+    if response_type == ResponseType.JSON:
+      json_data = response_data.json()
+      return SCBResponse(
+        columns = json_data["columns"],
+        comments = json_data["comments"],
+        data = [
+          SCBResponseDataPoint(
+            datapoint["key"], 
+            datapoint["values"]
+          ) 
+          for datapoint 
+          in json_data["data"]
+        ]
+      )
+    
+    elif response_type == ResponseType.CSV:
+      content = response_data.content.decode("latin-1").replace("\"", "").replace("'", "")
+      lines = content.split("\r\n")
+      headers = lines[0].split(",")
+      datapoints = []
+      for line in lines[1:]:
+        l = line.strip()
+        datapoint = {}
+        for i, value in enumerate(l.split(",")):
+          datapoint[headers[i]] = value
+        datapoints.append(datapoint)
+      return datapoints
+      
+    
+    else:
+      raise NotImplementedError("This response type is not supported yet.")
 
   def __get_default_query(self, response_type: ResponseType) -> SCBQuery:
     """Returns an SCBQuery with all variables defaulted to ["*"]. """
