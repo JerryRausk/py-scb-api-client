@@ -44,3 +44,31 @@ print(scb_client.estimate_cell_count(query))
 # If the data exceeds SCB's limit on results per request this will result in multiple requests.
 scb_data = scb_client.get_data(query)
 ```
+
+## With Pandas
+In this example we are requesting a CSV response, this is recommended since it will significantly smaller than the json equivalent and the result ends up in a DataFrame anyway.
+```Python
+from SCB_Client import SCBClient, ResponseType, SCBClientUtilities as utils
+import pandas as pd
+
+scb_client = SCBClient("BE", "BE0101", "BE0101A", "BefolkManad")
+  variable_selections = {
+    "Kon": ["%"],
+    "Region": ["*"],
+    "Tid": ["2005M01", "2005M02", "2005M03", "2005M04", "2005M05"]
+  }
+  scb_client.set_size_limit(200000)
+
+  query = scb_client.create_query(
+    variable_selection = variable_selections, 
+    response_type = ResponseType.CSV
+  )
+  # This is about 157k "cells" and will be done in 2 requests.
+  data = scb_client.get_data(query)
+
+  # We flatten the list of lists to a single list
+  flattened_data = utils.flatten_data(data)
+
+  # The flattened list can be passed to pandas.DataFrame.
+  df = pd.DataFrame(flattened_data)
+```

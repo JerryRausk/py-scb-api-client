@@ -59,17 +59,9 @@ class SCBClient:
     Returns:
       count: int
     """
-    if query.response_type == ResponseType.JSON:
-      return math.prod([len(queryvar.selection.values) for queryvar in query.query])
-    elif query.response_type == ResponseType.CSV:
-      # TODO: This calculation is off by 1, no clue why.
-      time_variable_code = [var.code for var in self.get_variables() if var.time == True][0]
-      time_variable_value_count = [len(var.selection.values) for var in query.query if var.code == time_variable_code][0]
-      product_of_all_variable_value_count = math.prod([len(queryvar.selection.values) for queryvar in query.query])
-      return int(product_of_all_variable_value_count / time_variable_value_count)
-    else:
-      raise NotImplementedError("This ResponseType is not implemented yet.")
-  
+
+    return math.prod([len(queryvar.selection.values) for queryvar in query.query])
+
   def get_data(self, query: SCBQuery) -> List[SCBJsonResponse]:
     """
     Get data from SCB if internal limit is not exceeded. 
@@ -190,7 +182,7 @@ class SCBClient:
     
     elif response_type == ResponseType.CSV:
       content = response_data.content.decode("latin-1").replace("\"", "").replace("'", "")
-      lines = content.split("\r\n")
+      lines = content.strip().split("\r\n")
       headers = lines[0].split(",")
       datapoints = []
       for line in lines[1:]:
