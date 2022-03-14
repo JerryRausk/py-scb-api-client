@@ -1,11 +1,16 @@
-from itertools import product
 import json
-from typing import List, Optional
-import requests
 import math
 from time import sleep
-from SCB_Client.model.scb_models import SCBQuery, SCBQueryVariable, SCBQueryVariableSelection, SCBJsonResponse, SCBJsonResponseDataPoint, SCBVariable, ResponseType
-import csv
+from typing import List, Optional
+
+import requests
+
+from SCB_Client.model.scb_models import (ResponseType, SCBJsonResponse,
+                                         SCBJsonResponseDataPoint, SCBQuery,
+                                         SCBQueryVariable,
+                                         SCBQueryVariableSelection,
+                                         SCBVariable)
+
 
 class SCBClient:
   _SCB_BASE_URL = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
