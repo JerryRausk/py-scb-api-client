@@ -4,7 +4,7 @@ from typing import List, Optional
 import requests
 import math
 from time import sleep
-from SCB_Client.model.scb_models import SCBQuery, SCBQueryVariable, SCBQueryVariableSelection, SCBResponse, SCBResponseDataPoint, SCBVariable, ResponseType
+from SCB_Client.model.scb_models import SCBQuery, SCBQueryVariable, SCBQueryVariableSelection, SCBJsonResponse, SCBJsonResponseDataPoint, SCBVariable, ResponseType
 import csv
 
 class SCBClient:
@@ -70,7 +70,7 @@ class SCBClient:
     else:
       raise NotImplementedError("This ResponseType is not implemented yet.")
   
-  def get_data(self, query: SCBQuery) -> List[SCBResponse]:
+  def get_data(self, query: SCBQuery) -> List[SCBJsonResponse]:
     """
     Get data from SCB if internal limit is not exceeded. 
     Multiple requests will be made if the SCB limit is exceeded.
@@ -90,7 +90,7 @@ class SCBClient:
       # Now we need to fetch the data
       values_to_partition = partition_variable.selection.values.copy()
       partitions = self.__partition_list(values_to_partition, partition_values_per_request)
-      response_list: List[SCBResponse] = []
+      response_list: List[SCBJsonResponse] = []
       for partition in partitions:
         partition_variable.selection.values = partition
         response = requests.post(self.data_url, json = query.to_dict())
@@ -175,11 +175,11 @@ class SCBClient:
   def __create_response_obj(response_data: requests.Response, response_type: ResponseType):
     if response_type == ResponseType.JSON:
       json_data = response_data.json()
-      return SCBResponse(
+      return SCBJsonResponse(
         columns = json_data["columns"],
         comments = json_data["comments"],
         data = [
-          SCBResponseDataPoint(
+          SCBJsonResponseDataPoint(
             datapoint["key"], 
             datapoint["values"]
           ) 

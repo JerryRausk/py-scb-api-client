@@ -1,6 +1,7 @@
-from enum import Enum
 from dataclasses import dataclass
-from typing import List
+from enum import Enum
+from typing import List, Dict
+
 
 class ResponseType(Enum):
   JSON = "json"
@@ -16,15 +17,19 @@ class SCBVariable():
   time: bool = False
 
 @dataclass
-class SCBResponseDataPoint:
+class SCBCsvResponse:
+  data: List[Dict[str, str]]
+  column_names: List[str]
+@dataclass
+class SCBJsonResponseDataPoint:
   key: List[str]
   values: List[str]
 
 @dataclass
-class SCBResponse:
+class SCBJsonResponse:
   columns: List[dict]
   comments: List[dict]
-  data: List[SCBResponseDataPoint]
+  data: List[SCBJsonResponseDataPoint]
 
 @dataclass
 class SCBQueryVariableSelection:
