@@ -45,8 +45,8 @@ print(scb_client.estimate_cell_count(query))
 scb_data = scb_client.get_data(query)
 ```
 
-## With Pandas
-In this example we are requesting a CSV response, this is recommended since it will significantly smaller than the json equivalent and the result ends up in a DataFrame anyway.
+### With Pandas
+In this example we are requesting a CSV response, this is recommended since it will be significantly smaller than it's json equivalence and the result ends up in a DataFrame anyway.
 ```Python
 from SCB_Client import SCBClient, ResponseType, SCBClientUtilities as utils
 import pandas as pd
