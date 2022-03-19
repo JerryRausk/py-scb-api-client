@@ -2,7 +2,6 @@ import json
 import math
 from time import sleep
 from typing import List, Optional
-
 import requests
 
 from SCB_Client.model.scb_models import (ResponseType, SCBJsonResponse,
@@ -13,8 +12,8 @@ from SCB_Client.model.scb_models import (ResponseType, SCBJsonResponse,
 
 
 class SCBClient:
-  _SCB_BASE_URL = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
-  _SCB_LIMIT_RESULT = 150000
+  _SCB_BASE_URL: str = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
+  _SCB_LIMIT_RESULT: int = 150000
   _variables: List[SCBVariable] = None # Used to cache variableas in case they are needed multiple times
   _size_limit_cells: int = 30000
   _preferred_partition_variable_code: str = None
@@ -90,9 +89,18 @@ class SCBClient:
       response_list: List[SCBJsonResponse] = []
       for partition in partitions:
         partition_variable.selection.values = partition
-        response = requests.post(self.data_url, json = query.to_dict())
+
+        # TODO: This is horrible
+        fetched = False
+        while True:
+          response = requests.post(self.data_url, json = query.to_dict())
+          if response.status_code == 429:
+            sleep(0.1)
+            continue
+          else:
+            break
+          
         response_list.append(self.__create_response_obj(response, query.response_type))
-        sleep(1) # Naively wait 1 sec between requests to make sure we are not too eager. 
         
       return response_list
   
@@ -162,7 +170,7 @@ class SCBClient:
     return variables
 
   @staticmethod
-  def __partition_list(list_to_partition: list, partition_size: int):
+  def __partition_list(list_to_partition: list, partition_size: int) -> List[list]:
     list_partitioned = []
     for i in range(0, len(list_to_partition), partition_size):
       list_partitioned.append(list_to_partition[i:i+partition_size])
@@ -238,7 +246,7 @@ class SCBClient:
     return values_per_partition
 
   @classmethod
-  def create_and_validate_client(cls, area, category, category_specification, table):
+  def create_and_validate_client(cls, area: str, category: str, category_specification: str, table: str):
     """Validates that the area, category, category_specification and table is valid.
         Requires 4 light-weight requests to SCB."""
     s = requests.Session()
