@@ -29,9 +29,18 @@ def test_huge_request():
   """Warning, this will make 150+ requests to SCB and takes a long time to run."""
   scb_client = SCBClient("BE", "BE0101", "BE0101A", "BefolkManad")
   scb_client.set_size_limit(0)
+  selected_variables = {
+    "Tid": [
+      "2000M01", "2000M02", "2000M03", "2000M04", "2000M05", "2000M06",
+      "2001M01", "2001M02", "2001M03", "2001M04", "2001M05", "2001M06",
+      "2002M01", "2002M02", "2002M03", "2002M04", "2002M05", "2002M06",
+      "2003M01", "2003M02", "2003M03", "2003M04", "2003M05", "2003M06"
+      ]
+  }
 
   query = scb_client.create_query(
-    response_type = ResponseType.CSV
+    response_type = ResponseType.CSV,
+    variable_selection = selected_variables
   )
   data = scb_client.get_data(query)
   pass
