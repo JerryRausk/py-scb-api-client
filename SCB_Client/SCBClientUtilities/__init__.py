@@ -9,9 +9,10 @@ class SessionType(Enum):
   PROCESS = "process"
 
 class PerformanceMonitor():
-  download_sessions: List[timedelta] = []
-  process_session: List[timedelta] = []
-  __ongoing_sessions: List[dict] = []
+  def __init__(self):
+    self.download_sessions: List[timedelta] = []
+    self.process_session: List[timedelta] = []
+    self.__ongoing_sessions: List[dict] = []
 
   def start_session(self, type: SessionType) -> UUID:
     new_uuid = uuid4()
@@ -36,10 +37,16 @@ class PerformanceMonitor():
       self.process_session.append(td)
     else:
       raise NotImplementedError("This sessions type is not recognized.")
-    self.download_sessions.append(td)
     self.__ongoing_sessions.remove(session_to_stop)
     return td
     
+  def total_session_time_microseconds(self, type: SessionType) -> int:
+    if type == SessionType.DOWNLOAD:
+     return sum([ms.microseconds for ms in self.download_sessions])
+    elif type == SessionType.PROCESS:
+      pass
+    else:
+      raise NotImplementedError("This sessions type is not recognized.")
 
 def flatten_data(nested_data: List[list]) -> list:
   return [item for sublist in nested_data for item in sublist]

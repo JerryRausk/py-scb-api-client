@@ -1,4 +1,5 @@
-from SCB_Client import SCBClient, ResponseType, SCBClientUtilities as utils
+from SCB_Client import SCBClient, ResponseType
+import SCB_Client.SCBClientUtilities as utils
 import pandas as pd
 
 def test_csv_to_df():
@@ -43,4 +44,8 @@ def test_huge_request():
     variable_selection = selected_variables
   )
   data = scb_client.get_data(query)
-  pass
+  flattened_data = utils.flatten_data(data)
+  expected_data_rows = 63024 # 2(Kon) * 312(Region) * 101(Alder)
+  expected_data_points_per_row = 27 # Kon, Region, Alder, Tid * 24
+  assert len(flattened_data) == expected_data_rows
+  assert len(flattened_data[0]) == expected_data_points_per_row
