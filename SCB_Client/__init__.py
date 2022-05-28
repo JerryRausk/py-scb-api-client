@@ -9,14 +9,11 @@ from SCB_Client.model.scb_models import (ResponseType, SCBJsonResponse,
                                          SCBQueryVariable,
                                          SCBQueryVariableSelection,
                                          SCBVariable)
-
+from SCB_Client.SCBClientUtilities import PerformanceMonitor, SessionType
 
 class SCBClient:
   _SCB_BASE_URL: str = "https://api.scb.se/OV0104/v1/doris/sv/ssd"
   _SCB_LIMIT_RESULT: int = 150000
-  _variables: List[SCBVariable] = None # Used to cache variableas in case they are needed multiple times
-  _size_limit_cells: int = 30000
-  _preferred_partition_variable_code: str = None
 
   def __init__(
     self, 
@@ -31,6 +28,10 @@ class SCBClient:
     self.category_specification = category_specification
     self.table = table
     self.data_url = f"{self._SCB_BASE_URL}/{area}/{category}/{category_specification}/{table}"
+    self._variables: List[SCBVariable] = None # Used to cache variableas in case they are needed multiple times
+    self._size_limit_cells: int = 30000
+    self._preferred_partition_variable_code: str = None
+    self.perf_mon = PerformanceMonitor()
 
   def set_preferred_partition_variable_code(self, variable_code: str) -> None:
     """preferred_partition_variable_code will be used to partition the requests if the expected result is larger than the SCB limit."""
@@ -91,15 +92,16 @@ class SCBClient:
         partition_variable.selection.values = partition
 
         # TODO: This is horrible
-        fetched = False
         while True:
+          dl_ses_id = self.perf_mon.start_session(SessionType.DOWNLOAD)
           response = requests.post(self.data_url, json = query.to_dict())
           if response.status_code == 429:
             sleep(0.1)
             continue
           else:
+            self.perf_mon.stop_session(dl_ses_id)
             break
-          
+        
         response_list.append(self.__create_response_obj(response, query.response_type))
         
       return response_list
@@ -176,11 +178,11 @@ class SCBClient:
       list_partitioned.append(list_to_partition[i:i+partition_size])
     return list_partitioned
 
-  @staticmethod
-  def __create_response_obj(response_data: requests.Response, response_type: ResponseType):
+  def __create_response_obj(self, response_data: requests.Response, response_type: ResponseType):
+    perf_ses_id = self.perf_mon.start_session(SessionType.PROCESS)
     if response_type == ResponseType.JSON:
       json_data = response_data.json()
-      return SCBJsonResponse(
+      response_data = SCBJsonResponse(
         columns = json_data["columns"],
         comments = json_data["comments"],
         data = [
@@ -192,23 +194,25 @@ class SCBClient:
           in json_data["data"]
         ]
       )
+      
     
     elif response_type == ResponseType.CSV:
       content = response_data.content.decode("latin-1").replace("\"", "").replace("'", "")
       lines = content.strip().split("\r\n")
       headers = lines[0].split(",")
-      datapoints = []
+      response_data = []
       for line in lines[1:]:
         l = line.strip()
         datapoint = {}
         for i, value in enumerate(l.split(",")):
           datapoint[headers[i]] = value
-        datapoints.append(datapoint)
-      return datapoints
+        response_data.append(datapoint)
       
-    
     else:
       raise NotImplementedError("This response type is not supported yet.")
+    
+    self.perf_mon.stop_session(perf_ses_id)
+    return response_data
 
   def __get_default_query(self, response_type: ResponseType) -> SCBQuery:
     """Returns an SCBQuery with all variables defaulted to ["*"]. """
