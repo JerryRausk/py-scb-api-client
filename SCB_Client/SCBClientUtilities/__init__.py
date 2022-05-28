@@ -30,7 +30,7 @@ class PerformanceMonitor():
     session_to_stop = [session for session in self.__ongoing_sessions if session["uuid"] == uuid][0]
     if not session_to_stop:
       raise KeyError("No found session for {uuid}.")
-    td = datetime.now() - session_to_stop["time"]
+    td: timedelta = datetime.now() - session_to_stop["time"]
     if session_to_stop["type"] == SessionType.DOWNLOAD:
       self.download_sessions.append(td)
     elif session_to_stop["type"] == SessionType.PROCESS:
@@ -42,9 +42,9 @@ class PerformanceMonitor():
     
   def total_session_time_microseconds(self, type: SessionType) -> int:
     if type == SessionType.DOWNLOAD:
-     return sum([ms.microseconds for ms in self.download_sessions])
+      return sum([ms.microseconds for ms in self.download_sessions])
     elif type == SessionType.PROCESS:
-      pass
+      return sum([ms.microseconds for ms in self.process_session])
     else:
       raise NotImplementedError("This sessions type is not recognized.")
 
