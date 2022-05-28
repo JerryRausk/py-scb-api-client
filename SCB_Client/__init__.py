@@ -20,7 +20,8 @@ class SCBClient:
     area: str, 
     category: str,
     category_specification: str,
-    table: str
+    table: str,
+    **kwargs
     ):
  
     self.area = area
@@ -31,7 +32,10 @@ class SCBClient:
     self._variables: List[SCBVariable] = None # Used to cache variableas in case they are needed multiple times
     self._size_limit_cells: int = 30000
     self._preferred_partition_variable_code: str = None
-    self.perf_mon = PerformanceMonitor()
+    if "performance_monitor" in kwargs:
+      self.perf_mon = kwargs["performance_monitor"]
+    else:
+      self.perf_mon = PerformanceMonitor() 
 
   def set_preferred_partition_variable_code(self, variable_code: str) -> None:
     """preferred_partition_variable_code will be used to partition the requests if the expected result is larger than the SCB limit."""
@@ -91,7 +95,9 @@ class SCBClient:
       for partition in partitions:
         partition_variable.selection.values = partition
 
-        # TODO: This is horrible
+        # TODO: This is horrible, SCB limits the amount of requests that can be made.
+        # We should hold off if we've reached the limit, maybe even keep track of how many requests we've
+        # made and not rely on SCB to tell us to back off.
         while True:
           dl_ses_id = self.perf_mon.start_session(SessionType.DOWNLOAD)
           response = requests.post(self.data_url, json = query.to_dict())
@@ -194,7 +200,6 @@ class SCBClient:
           in json_data["data"]
         ]
       )
-      
     
     elif response_type == ResponseType.CSV:
       content = response_data.content.decode("latin-1").replace("\"", "").replace("'", "")
@@ -250,22 +255,32 @@ class SCBClient:
     return values_per_partition
 
   @classmethod
-  def create_and_validate_client(cls, area: str, category: str, category_specification: str, table: str):
+  def create_and_validate_client(cls, area: str, category: str, category_specification: str, table: str, **kwargs):
     """Validates that the area, category, category_specification and table is valid.
         Requires 4 light-weight requests to SCB."""
-    s = requests.Session()
+    if "session" in kwargs:
+      s = kwargs["session"]
+    else:
+      s = requests.Session()
+    perf_mon = PerformanceMonitor()
+
     # Validating area
+    dl_ses_id = perf_mon.start_session(SessionType.DOWNLOAD)
     scb_area_response = s.get(cls._SCB_BASE_URL)
+    dl_ses_id = perf_mon.stop_session(dl_ses_id)
+
     if scb_area_response.status_code != 200:
       raise ConnectionError(f"Couldn't reach SCB at {cls._SCB_BASE_URL}")
 
     if area not in [scb_area["id"] for scb_area in json.loads(scb_area_response.content.decode("latin-1"))]:
       raise ValueError(f"{area} doesn't seem to be a valid area, please visit {cls._SCB_BASE_URL} for valid areas.")
-   
+
     _area = area
     
     # Validating category
+    dl_ses_id = perf_mon.start_session(SessionType.DOWNLOAD)
     scb_category_response = s.get(f"{cls._SCB_BASE_URL}/{area}")
+    perf_mon.stop_session(dl_ses_id)
     if scb_category_response.status_code != 200:
       raise ConnectionError(f"Couldn't retrieve categories from SCB at {cls._SCB_BASE_URL}/{area}")
 
@@ -274,8 +289,10 @@ class SCBClient:
 
     _category = category
 
-     # Validating category sepcification
+    # Validating category sepcification
+    dl_ses_id = perf_mon.start_session(SessionType.DOWNLOAD)
     scb_category_specification_response = s.get(f"{cls._SCB_BASE_URL}/{area}/{category}")
+    perf_mon.stop_session(dl_ses_id)
     if scb_category_specification_response.status_code != 200:
       raise ConnectionError(f"Couldn't retrieve category specifications from SCB at {cls._SCB_BASE_URL}/{area}/{category}")
 
@@ -285,7 +302,9 @@ class SCBClient:
     _category_spec = category_specification
 
     # Validating table
+    dl_ses_id = perf_mon.start_session(SessionType.DOWNLOAD)
     scb_table_response = s.get(f"{cls._SCB_BASE_URL}/{area}/{category}/{category_specification}")
+    perf_mon.stop_session(dl_ses_id)
     if scb_table_response.status_code != 200:
       raise ConnectionError(f"Couldn't retrieve tables from SCB at {cls._SCB_BASE_URL}/{area}/{category}/{category_specification}")
 
@@ -300,5 +319,6 @@ class SCBClient:
       area = _area,
       category = _category,
       category_specification = _category_spec,
-      table = _table
+      table = _table,
+      performance_monitor = perf_mon
     )
