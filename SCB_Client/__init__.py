@@ -202,7 +202,13 @@ class SCBClient:
       )
     
     elif response_type == ResponseType.CSV:
-      content = response_data.content.decode("latin-1").replace("\"", "").replace("'", "")
+      # SCB sometimes has headers with a comma (,) in them which is mad.
+      # Attempt to counter this with assuming ", " is not a delimiter.
+      content = response_data.content \
+                  .decode("latin-1") \
+                  .replace("\"", "") \
+                  .replace("'", "") \
+                  .replace(", ", " ")
       lines = content.strip().split("\r\n")
       headers = lines[0].split(",")
       response_data = []
