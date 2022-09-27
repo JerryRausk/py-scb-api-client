@@ -309,7 +309,7 @@ class SCBClient:
       raise ConnectionError(f"Couldn't retrieve tables from SCB at {cls._SCB_BASE_URL}/{area}/{category}/{category_specification}")
 
     if table not in [scb_table["id"] for scb_table in json.loads(scb_table_response.content.decode("latin-1"))]:
-      raise ValueError(f"{category_specification} doesn't seem to be a valid table, please visit {cls._SCB_BASE_URL}/{area}/{category}/{category_specification} for valid tables.")
+      raise ValueError(f"{table} doesn't seem to be a valid table, please visit {cls._SCB_BASE_URL}/{area}/{category}/{category_specification} for valid tables.")
 
     _table = table
 
